@@ -125,6 +125,13 @@ typedef Grid::PeriodicGaugeImpl<Grid::GaugeImplTypes<Grid::vComplexD, 1, 12, Gri
 #define GIMPLF HADRONS_IMPL(GIMPLBASE, F)
 #define GIMPLD HADRONS_IMPL(GIMPLBASE, D)
 
+#ifndef STAGIMPLBASE
+#define STAGIMPLBASE StaggeredImpl
+#endif
+#define STAGIMPL  HADRONS_IMPL(STAGIMPLBASE, R)
+#define STAGIMPLF HADRONS_IMPL(STAGIMPLBASE, F)
+#define STAGIMPLD HADRONS_IMPL(STAGIMPLBASE, D)
+
 BEGIN_HADRONS_NAMESPACE
 
 // type aliases
