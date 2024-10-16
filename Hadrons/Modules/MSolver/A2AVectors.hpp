@@ -260,7 +260,6 @@ public:
                                     std::string, action,
                                     std::string, gauge,
                                     std::string, eigenPack,
-                                    std::string, solver,
                                     std::string, output,
                                     int, inc,
                                     int, tinc,
