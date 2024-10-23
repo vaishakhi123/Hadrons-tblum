@@ -277,8 +277,7 @@ public:
     FERM_TYPE_ALIASES(FImpl,);
     typedef A2AVectorsLowStaggered<FImpl> A2A;
     typedef typename Grid::NaiveStaggeredFermionD::FermionField SparseFermionField;
-    //typedef typename CoarseField CoarseField;
-
+    
 public:
     // constructor
     TStagSparseA2AVectors(const std::string name);
@@ -395,8 +394,9 @@ void TStagSparseA2AVectors<FImpl, Pack>::execute(void)
     int step=2*par().inc;
     //std::random_device rd;  // a seed source for the random number engine
     //std::mt19937 gen(rd()); // mersenne_twister_engine seeded with rd()
-    // sparsen on time slice starting anywhere between 0 and step-1, inclusive
-    std::uniform_int_distribution<uint32_t> uid(0, step-1);
+    // sparsen on time slice starting anywhere between 0 and ns-1, inclusive
+    // seed with rngSerial (below)
+    std::uniform_int_distribution<uint32_t> uid(0, ns-1);
     std::vector<uint32_t> xshift(nt);
     std::vector<uint32_t> yshift(nt);
     std::vector<uint32_t> zshift(nt);
@@ -429,7 +429,12 @@ void TStagSparseA2AVectors<FImpl, Pack>::execute(void)
     int lstarty=U.Grid()->_lstart[1];
     int lstartz=U.Grid()->_lstart[2];
     int lstartt=U.Grid()->_lstart[3];
-    
+    printf("my node %d local tsites= %d\n", U.Grid()->_processor_coor[3],loct);
+    printf("my node %d global t start= %d\n", U.Grid()->_processor_coor[3], lstartt);
+    LOG(Message) << "xshift" << xshift << std::endl;
+    LOG(Message) << "yshift" << yshift << std::endl;
+    LOG(Message) << "zshift" << zshift << std::endl;
+
     for (unsigned int il = 0; il < 2*Nl_; il++)
     {
         // eval of unpreconditioned Dirac op
@@ -439,8 +444,8 @@ void TStagSparseA2AVectors<FImpl, Pack>::execute(void)
         LOG(Message) << "W vector i = " << il << " (low modes)" << std::endl;
         // don't divide by lambda. Do it in contraction since it is complex
         a2a.makeLowModeW(temp, epack.evec[il/2], eval, il%2);
-        
         stopTimer("W low mode");
+        
         il%2 ? eval=conjugate(eval) : eval ;
         evalM[il]=eval;
         
@@ -472,23 +477,26 @@ void TStagSparseA2AVectors<FImpl, Pack>::execute(void)
                 
                 // loop over hypercubes on time slice
                 // and sparsen, keep all sites in hypercube
-                for(int zg=zshift[tglb];zg<ns;zg+=step){
-                    for(int z=0;z<locz;z++){
-                        int zgp=z+lstartz;
+                for(int z=0;z<ns;z+=step){
+                    int zg=(zshift[tglb]+z)%ns;
+                    for(int zl=0;zl<locz;zl++){
+                        int zgp=zl+lstartz;
                         if(zgp==zg || zgp==(zg+1)%ns){
-                            site[2]=z;
+                            site[2]=zl;
                             sparseSite[2]=site[2]/par().inc;
-                            for(int yg=yshift[tglb];yg<ns;yg+=step){
-                                for(int y=0;y<locy;y++){
-                                    int ygp=y+lstarty;
+                            for(int y=0;y<ns;y+=step){
+                                int yg=(yshift[tglb]+y)%ns;
+                                for(int yl=0;yl<locy;yl++){
+                                    int ygp=yl+lstarty;
                                     if(ygp==yg || ygp==(yg+1)%ns){
-                                        site[1]=y;
+                                        site[1]=yl;
                                         sparseSite[1]=site[1]/par().inc;
-                                        for(int xg=xshift[tglb];xg<ns;xg+=step){
-                                            for(int x=0;x<locx;x++){
-                                                int xgp=x+lstartx;
+                                        for(int x=0;x<ns;x+=step){
+                                            int xg=(xshift[tglb]+x)%ns;
+                                            for(int xl=0;xl<locx;xl++){
+                                                int xgp=xl+lstartx;
                                                 if(xgp==xg || xgp==(xg+1)%ns){
-                                                    site[0]=x;
+                                                    site[0]=xl;
                                                     sparseSite[0]=site[0]/par().inc;
                                                     for(int that=0;that<2;that++){
                                                         site[3]=t+that;
@@ -519,41 +527,40 @@ void TStagSparseA2AVectors<FImpl, Pack>::execute(void)
         }// end mu
     }// end evecs
     
-// FIXME: need IO
-//    std::string dir = dirname(par().output);
-//    if (!par().output.empty())
-//    {
-//        int status = mkdir(dir);
-//        if (status)
-//        {
-//            HADRONS_ERROR(Io, "cannot create directory '" + dir
-//                          + "' ( " + std::strerror(errno) + ")");
-//        }
-//        startTimer("V I/O");
-//        A2AVectorsIo::write(par().output + "_v", v, par().multiFile, vm().getTrajectory());
-//        stopTimer("V I/O");
-//        startTimer("W I/O");
-//        A2AVectorsIo::write(par().output + "_w0", w0, par().multiFile, vm().getTrajectory());
-//        A2AVectorsIo::write(par().output + "_w1", w1, par().multiFile, vm().getTrajectory());
-//        A2AVectorsIo::write(par().output + "_w2", w2, par().multiFile, vm().getTrajectory());
-//        stopTimer("W I/O");
-//    }
-//    
-//    if ( env().getGrid()->IsBoss() ) {
-//        
-//        std::string eval_filename;
-//        if (!par().output.empty()){
-//            eval_filename=A2AVectorsIo::evalFilename(par().output,vm().getTrajectory());
-//        }else{
-//            eval_filename=A2AVectorsIo::evalFilename("evals",vm().getTrajectory());
-//        }
-//        A2AVectorsIo::initEvalFile(eval_filename,
-//                                   evalM.size());// total size
-//        A2AVectorsIo::saveEvalBlock(eval_filename,
-//                                    evalM.data(),
-//                                    0,// start of chunk
-//                                    2*Nl_);// size of chunk saved
-//    }
+    std::string dir = dirname(par().output);
+    if (!par().output.empty())
+    {
+        int status = mkdir(dir);
+        if (status)
+        {
+            HADRONS_ERROR(Io, "cannot create directory '" + dir
+                          + "' ( " + std::strerror(errno) + ")");
+        }
+        startTimer("V I/O");
+        A2AVectorsIo::write(par().output + "_v", v, par().multiFile, vm().getTrajectory());
+        stopTimer("V I/O");
+        startTimer("W I/O");
+        A2AVectorsIo::write(par().output + "_w0", w0, par().multiFile, vm().getTrajectory());
+        A2AVectorsIo::write(par().output + "_w1", w1, par().multiFile, vm().getTrajectory());
+        A2AVectorsIo::write(par().output + "_w2", w2, par().multiFile, vm().getTrajectory());
+        stopTimer("W I/O");
+    }
+    
+    if ( env().getGrid()->IsBoss() ) {
+        
+        std::string eval_filename;
+        if (!par().output.empty()){
+            eval_filename=A2AVectorsIo::evalFilename(par().output,vm().getTrajectory());
+        }else{
+            eval_filename=A2AVectorsIo::evalFilename("evals",vm().getTrajectory());
+        }
+        A2AVectorsIo::initEvalFile(eval_filename,
+                                   evalM.size());// total size
+        A2AVectorsIo::saveEvalBlock(eval_filename,
+                                    evalM.data(),
+                                    0,// start of chunk
+                                    2*Nl_);// size of chunk saved
+    }
 }
 
 
