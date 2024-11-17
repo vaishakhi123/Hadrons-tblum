@@ -50,6 +50,7 @@ public:
                                     RealD,         coarseRelaxTol,
                                     std::string,   blockSize,
                                     std::string,   output,
+                                    int,           cb,
                                     bool,          multiFile);
 };
 
@@ -85,10 +86,12 @@ public:
 MODULE_REGISTER_TMP(LocalCoherenceLanczos, ARG(TLocalCoherenceLanczos<FIMPL, HADRONS_DEFAULT_LANCZOS_NBASIS>), MSolver);
 MODULE_REGISTER_TMP(LocalCoherenceLanczos600, ARG(TLocalCoherenceLanczos<FIMPL, 600>), MSolver);
 MODULE_REGISTER_TMP(ZLocalCoherenceLanczos, ARG(TLocalCoherenceLanczos<ZFIMPL, HADRONS_DEFAULT_LANCZOS_NBASIS>), MSolver);
+MODULE_REGISTER_TMP(StagLocalCoherenceLanczos, ARG(TLocalCoherenceLanczos<STAGIMPL, HADRONS_DEFAULT_LANCZOS_NBASIS>), MSolver);
 #ifdef GRID_DEFAULT_PRECISION_DOUBLE
 MODULE_REGISTER_TMP(LocalCoherenceLanczosIo32, ARG(TLocalCoherenceLanczos<FIMPL, HADRONS_DEFAULT_LANCZOS_NBASIS, FIMPLF>), MSolver);
 MODULE_REGISTER_TMP(LocalCoherenceLanczos600Io32, ARG(TLocalCoherenceLanczos<FIMPL, 600, FIMPLF>), MSolver);
 MODULE_REGISTER_TMP(ZLocalCoherenceLanczosIo32, ARG(TLocalCoherenceLanczos<ZFIMPL, HADRONS_DEFAULT_LANCZOS_NBASIS, ZFIMPLF>), MSolver);
+MODULE_REGISTER_TMP(StagLocalCoherenceLanczosIo32, ARG(TLocalCoherenceLanczos<STAGIMPL, HADRONS_DEFAULT_LANCZOS_NBASIS, STAGIMPLF>), MSolver);
 #endif
 
 /******************************************************************************
@@ -131,7 +134,8 @@ void TLocalCoherenceLanczos<FImpl, nBasis, FImplIo>::setup(void)
 
     if (typeHash<Field>() != typeHash<FieldIo>())
     {
-        gridIo       = envGetRbGrid(FieldIo, Ls);
+        if(Ls==1) gridIo = envGetRbGrid(FieldIo);
+        else gridIo      = envGetRbGrid(FieldIo,Ls);
     }
     if (typeHash<CoarseField>() != typeHash<CoarseFieldIo>())
     {
@@ -142,16 +146,23 @@ void TLocalCoherenceLanczos<FImpl, nBasis, FImplIo>::setup(void)
     int  cNm = (par().doCoarse) ? par().coarseParams.Nm : 0;
 
     LOG(Message) << "Coarse grid: " << cg->GlobalDimensions() << std::endl;
-    envCreateDerived(BasePack, CoarsePack, getName(), Ls,
-                     par().fineParams.Nm, cNm, envGetRbGrid(Field, Ls), cg,
-                     gridIo, gridCoarseIo);
+    
+    if(Ls==1) envCreateDerived(BasePack, CoarsePack, getName(), Ls,
+                               par().fineParams.Nm, cNm, envGetRbGrid(Field), cg,
+                               gridIo, gridCoarseIo);
+    else      envCreateDerived(BasePack, CoarsePack, getName(), Ls,
+                               par().fineParams.Nm, cNm, envGetRbGrid(Field,Ls), cg,
+                               gridIo, gridCoarseIo);
 
     auto &epack = envGetDerived(BasePack, CoarsePack, getName());
 
     envTmp(SchurFMat, "mat", Ls, envGet(FMat, par().action));
     envGetTmp(SchurFMat, mat);
-    envTmp(LCL, "solver", Ls, envGetRbGrid(Field, Ls), cg, mat, 
-           Odd, epack.evec, epack.evecCoarse, epack.eval, epack.evalCoarse);
+        
+    if(Ls==1) envTmp(LCL, "solver", Ls, envGetRbGrid(Field), cg, mat,
+                     par().cb, epack.evec, epack.evecCoarse, epack.eval, epack.evalCoarse);
+    else      envTmp(LCL, "solver", Ls, envGetRbGrid(Field,Ls), cg, mat,
+                     par().cb, epack.evec, epack.evecCoarse, epack.eval, epack.evalCoarse);
 }
 
 // execution ///////////////////////////////////////////////////////////////////

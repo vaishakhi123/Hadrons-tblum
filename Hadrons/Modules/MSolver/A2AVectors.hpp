@@ -445,7 +445,6 @@ void TStagSparseA2AVectors<FImpl, Pack>::execute(void)
         // don't divide by lambda. Do it in contraction since it is complex
         a2a.makeLowModeW(temp, epack.evec[il/2], eval, il%2);
         stopTimer("W low mode");
-        auto view_v = v[il].View(CpuRead);
         
         il%2 ? eval=conjugate(eval) : eval ;
         evalM[il]=eval;
@@ -464,8 +463,7 @@ void TStagSparseA2AVectors<FImpl, Pack>::execute(void)
         
             // v vec is shifted and * link for conserved current
             temp2 = Umu*Cshift(temp, mu, 1);
-            auto view_w = temp2.View(CpuRead);
-            
+                        
             //thread_for(t,loct,{
             for(int t=0; t<loct;t++){//debug
                 int tglb=t+lstartt;
@@ -516,14 +514,12 @@ void TStagSparseA2AVectors<FImpl, Pack>::execute(void)
                                                         
                                                         site[3]=t+that;
                                                         sparseSite[3]=site[3];
-                                                        LebesgueOrder::IndexInteger index;
-                                                        Lexicographic::IndexFromCoor(sparseSite,index,v[il].Grid()->_rdimensions);
+                                                        
                                                         if(mu==0){// do v once
                                                             peekLocalSite(vec,temp,site);
                                                             pokeLocalSite(vec,v[il],sparseSite);
                                                             peekLocalSite(vec,temp2,site);
                                                             pokeLocalSite(vec,w0[il],sparseSite);
-                                                            LOG(Message) << sparseSite << " view v[" << index << "]=" << view_v[index] << std::endl;
                                                         }else if(mu==1){
                                                             peekLocalSite(vec,temp2,site);
                                                             pokeLocalSite(vec,w1[il],sparseSite);
@@ -531,7 +527,6 @@ void TStagSparseA2AVectors<FImpl, Pack>::execute(void)
                                                             peekLocalSite(vec,temp2,site);
                                                             pokeLocalSite(vec,w2[il],sparseSite);
                                                         }
-                                                        LOG(Message) << sparseSite << " view w[" << index << "]=" << view_w[index] << std::endl;
                                                     }
                                                 }
                                             }

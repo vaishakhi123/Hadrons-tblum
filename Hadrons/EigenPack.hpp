@@ -141,12 +141,20 @@ namespace EigenPackIo
 
             for(int k = ki; k < kf; ++k) 
             {
-                fullFilename = filename + "/v" + std::to_string(k) + ".bin";
+                if(filename.find("shuffle")!=std::string::npos){
+                    // luchang's shuffled field writer
+                    fullFilename = filename + "/meta" + std::to_string(k) + ".txt";
+                }else{
+                    // usual grid io
+                    fullFilename = filename + "/v" + std::to_string(k) + ".bin";
+                }
                 binReader.open(fullFilename);
                 readHeader(record, binReader);
                 readElement(evec[k - ki], eval[k - ki], k, binReader, ioBuf.get());
                 binReader.close();
             }
+            if(filename.find("shuffle")!=std::string::npos)
+                qlat::close_shuffled_fields_reader(filename);
         }
         else
         {
@@ -224,20 +232,34 @@ namespace EigenPackIo
             ioBuf.reset(new TIo(gridIo));
             testBuf.reset(new T(grid));
         }
+        // Qlattice shuffle field write
+        if(filename.find("shuffle")!=std::string::npos){
+            const qlat::Coordinate new_size_node(1,1,1,1);
+            const bool is_append = false;
+            const bool is_removing_old = true;
+            qlat::get_shuffled_fields_writer(filename, new_size_node, is_append, is_removing_old);
+        }
         if (multiFile)
         {
             std::string fullFilename;
 
             for(int k = ki; k < kf; ++k)
             {
-                fullFilename = filename + "/v" + std::to_string(k) + ".bin";
-
+                if(filename.find("shuffle")!=std::string::npos){
+                    // luchang's shuffled field writer
+                    fullFilename = filename + "/meta" + std::to_string(k) + ".txt";
+                }else{
+                    // usual grid io
+                    fullFilename = filename + "/v" + std::to_string(k) + ".bin";
+                }
                 makeFileDir(fullFilename, grid);
                 binWriter.open(fullFilename);
                 writeHeader(binWriter, record);
                 writeElement(binWriter, evec[k - ki], eval[k - ki], k, ioBuf.get(), testBuf.get());
                 binWriter.close();
             }
+            if(filename.find("shuffle")!=std::string::npos)
+                qlat::close_shuffled_fields_writer(filename);
         }
         else
         {

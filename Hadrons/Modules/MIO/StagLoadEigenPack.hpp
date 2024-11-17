@@ -124,13 +124,12 @@ void TStagLoadEigenPack<Pack, GImpl, FImpl>::execute(void)
     epack.read(par().filestem, par().multiFile, vm().getTrajectory());
     epack.eval.resize(par().size);
     
-    ComplexD minusI(0, -1.0);
-    ComplexD cc;
-    RealD eval;
-    double mass = par().mass;
-    Field temp(epack.evec[0].Grid());
-    
-    // make even evecs from Odd
+    //make even evecs from Odd
+//    ComplexD minusI(0, -1.0);
+//    ComplexD cc;
+//    RealD eval;
+    //double mass = par().mass;
+    //Field temp(epack.evec[0].Grid());
 //    if(par().redBlack==Even){
 //        for (unsigned int i = 0; i < par().size; i++)
 //        {

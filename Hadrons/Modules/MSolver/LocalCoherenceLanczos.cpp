@@ -32,8 +32,10 @@ using namespace MSolver;
 template class HADRONS_NAMESPACE::MSolver::TLocalCoherenceLanczos<FIMPL,HADRONS_DEFAULT_LANCZOS_NBASIS>;
 template class HADRONS_NAMESPACE::MSolver::TLocalCoherenceLanczos<FIMPL,600>;
 template class HADRONS_NAMESPACE::MSolver::TLocalCoherenceLanczos<ZFIMPL,HADRONS_DEFAULT_LANCZOS_NBASIS>;
+template class HADRONS_NAMESPACE::MSolver::TLocalCoherenceLanczos<STAGIMPL,HADRONS_DEFAULT_LANCZOS_NBASIS>;
 #ifdef GRID_DEFAULT_PRECISION_DOUBLE
 template class HADRONS_NAMESPACE::MSolver::TLocalCoherenceLanczos<FIMPL,HADRONS_DEFAULT_LANCZOS_NBASIS, FIMPLF>;
 template class HADRONS_NAMESPACE::MSolver::TLocalCoherenceLanczos<FIMPL,600, FIMPLF>;
 template class HADRONS_NAMESPACE::MSolver::TLocalCoherenceLanczos<ZFIMPL,HADRONS_DEFAULT_LANCZOS_NBASIS, ZFIMPLF>;
+template class HADRONS_NAMESPACE::MSolver::TLocalCoherenceLanczos<STAGIMPL,HADRONS_DEFAULT_LANCZOS_NBASIS, STAGIMPLF>;
 #endif
