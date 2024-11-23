@@ -31,7 +31,7 @@
 #include <Grid/qcd/action/fermion/implementation/WilsonKernelsImplementation.h>
 #include <Grid/qcd/action/fermion/implementation/WilsonKernelsHandImplementation.h>
 
-#ifndef AVX512
+//#ifndef AVX512 this does not work on Frontera
 #ifndef QPX
 #ifndef A64FX
 #ifndef A64FXFIXEDSIZE
@@ -39,7 +39,7 @@
 #endif
 #endif
 #endif
-#endif
+//#endif
 
 NAMESPACE_BEGIN(Grid);
 
