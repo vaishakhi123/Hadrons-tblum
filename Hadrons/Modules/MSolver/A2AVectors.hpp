@@ -486,7 +486,7 @@ void TStagSparseA2AVectors<FImpl, Pack>::execute(void)
                             if(zshift[tglb]%2 || par().inc==1){
                                 sparseSite[2]=int(site[2]/par().inc);
                             }else{
-                                sparseSite[2]=par().inc*int(site[2]/step) + site[2]%2;
+                                sparseSite[2]=2*int(site[2]/step) + site[2]%2;
                             }
                             for(int y=0;y<ns;y+=step){
                                 int yg=(yshift[tglb]+y)%ns;
@@ -497,7 +497,7 @@ void TStagSparseA2AVectors<FImpl, Pack>::execute(void)
                                         if(yshift[tglb]%2 || par().inc==1){
                                             sparseSite[1]=int(site[1]/par().inc);
                                         }else{
-                                            sparseSite[1]=par().inc*int(site[1]/step) + site[1]%2;
+                                            sparseSite[1]=2*int(site[1]/step) + site[1]%2;
                                         }
                                         for(int x=0;x<ns;x+=step){
                                             int xg=(xshift[tglb]+x)%ns;
@@ -508,7 +508,7 @@ void TStagSparseA2AVectors<FImpl, Pack>::execute(void)
                                                     if(xshift[tglb]%2 || par().inc==1){
                                                         sparseSite[0]=int(site[0]/par().inc);
                                                     }else{
-                                                        sparseSite[0]=par().inc*int(site[0]/step) + site[0]%2;
+                                                        sparseSite[0]=2*int(site[0]/step) + site[0]%2;
                                                     }
                                                     for(int that=0;that<2;that++){
                                                         
