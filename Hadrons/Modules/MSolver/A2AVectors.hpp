@@ -464,8 +464,8 @@ void TStagSparseA2AVectors<FImpl, Pack>::execute(void)
             // v vec is shifted and * link for conserved current
             temp2 = Umu*Cshift(temp, mu, 1);
                         
-            //thread_for(t,loct,{
-            for(int t=0; t<loct;t++){//debug
+            thread_for(t,loct,{
+            //for(int t=0; t<loct;t++){//debug
                 int tglb=t+lstartt;
                 // same random shift for t, t+1 in same hypercube
                 if(t%2 == 1) continue;
@@ -483,10 +483,12 @@ void TStagSparseA2AVectors<FImpl, Pack>::execute(void)
                         int zgp=zl+lstartz;
                         if(zgp==zg || zgp==(zg+1)%ns){
                             site[2]=zl;
-                            if(zshift[tglb]%2 || par().inc==1){
-                                sparseSite[2]=int(site[2]/par().inc);
+                            if(par().inc==1){
+                                sparseSite[2]=site[2];
+                            }else if(zshift[tglb]!=step-1){
+                                sparseSite[2]=2*int(site[2]/step) + (site[2]+zshift[tglb])%2;
                             }else{
-                                sparseSite[2]=2*int(site[2]/step) + site[2]%2;
+                                sparseSite[2]=2*int(site[2]/step) + (site[2])%2;
                             }
                             for(int y=0;y<ns;y+=step){
                                 int yg=(yshift[tglb]+y)%ns;
@@ -494,10 +496,12 @@ void TStagSparseA2AVectors<FImpl, Pack>::execute(void)
                                     int ygp=yl+lstarty;
                                     if(ygp==yg || ygp==(yg+1)%ns){
                                         site[1]=yl;
-                                        if(yshift[tglb]%2 || par().inc==1){
-                                            sparseSite[1]=int(site[1]/par().inc);
+                                        if(par().inc==1){
+                                            sparseSite[1]=site[1];
+                                        }else if(yshift[tglb]!=step-1){
+                                            sparseSite[1]=2*int(site[1]/step) + (site[1]+yshift[tglb])%2;
                                         }else{
-                                            sparseSite[1]=2*int(site[1]/step) + site[1]%2;
+                                            sparseSite[1]=2*int(site[1]/step) + (site[1])%2;
                                         }
                                         for(int x=0;x<ns;x+=step){
                                             int xg=(xshift[tglb]+x)%ns;
@@ -505,10 +509,12 @@ void TStagSparseA2AVectors<FImpl, Pack>::execute(void)
                                                 int xgp=xl+lstartx;
                                                 if(xgp==xg || xgp==(xg+1)%ns){
                                                     site[0]=xl;
-                                                    if(xshift[tglb]%2 || par().inc==1){
-                                                        sparseSite[0]=int(site[0]/par().inc);
+                                                    if(par().inc==1){
+                                                        sparseSite[0]=site[0];
+                                                    }else if(xshift[tglb]!=step-1){
+                                                        sparseSite[0]=2*int(site[0]/step) + (site[0]+xshift[tglb])%2;
                                                     }else{
-                                                        sparseSite[0]=2*int(site[0]/step) + site[0]%2;
+                                                        sparseSite[0]=2*int(site[0]/step) + (site[0])%2;
                                                     }
                                                     for(int that=0;that<2;that++){
                                                         
@@ -537,7 +543,7 @@ void TStagSparseA2AVectors<FImpl, Pack>::execute(void)
                         }
                     }
                 }
-            }//); debug
+            }); debug
         }// end mu
     }// end evecs
     
