@@ -543,7 +543,7 @@ void TStagSparseA2AVectors<FImpl, Pack>::execute(void)
                         }
                     }
                 }
-            }); debug
+            });
         }// end mu
     }// end evecs
     
