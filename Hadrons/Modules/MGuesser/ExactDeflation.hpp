@@ -70,6 +70,8 @@ public:
 
 MODULE_REGISTER_TMP(ExactDeflation, TExactDeflation<BaseFermionEigenPack<FIMPL>>, MGuesser);
 MODULE_REGISTER_TMP(ExactDeflationF, TExactDeflation<BaseFermionEigenPack<FIMPLF>>, MGuesser);
+MODULE_REGISTER_TMP(StagExactDeflation, TExactDeflation<BaseFermionEigenPack<STAGIMPL>>, MGuesser);
+MODULE_REGISTER_TMP(StagExactDeflationF, TExactDeflation<BaseFermionEigenPack<STAGIMPLF>>, MGuesser);
 
 
 /******************************************************************************
