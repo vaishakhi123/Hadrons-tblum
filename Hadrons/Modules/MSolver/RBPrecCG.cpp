@@ -34,3 +34,4 @@ template class HADRONS_NAMESPACE::MSolver::TRBPrecCG<FIMPL, false>;
 template class HADRONS_NAMESPACE::MSolver::TRBPrecCG<LIMPL>;
 template class HADRONS_NAMESPACE::MSolver::TRBPrecCG<ZFIMPL>;
 template class HADRONS_NAMESPACE::MSolver::TRBPrecCG<ZFIMPL, false>;
+template class HADRONS_NAMESPACE::MSolver::TRBPrecCG<STAGIMPL>;
