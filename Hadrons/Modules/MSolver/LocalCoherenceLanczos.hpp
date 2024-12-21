@@ -68,7 +68,7 @@ public:
     typedef typename CoarsePack::FieldIo                   FieldIo;
     typedef typename CoarsePack::CoarseField               CoarseField;
     typedef typename CoarsePack::CoarseFieldIo             CoarseFieldIo;
-    typedef HADRONS_DEFAULT_SCHUR_OP<FMat, FermionField>   SchurFMat;
+    typedef HADRONS_SCHUR_OP(Staggered)<FMat, FermionField>   SchurFMat;
 public:
     // constructor
     TLocalCoherenceLanczos(const std::string name);

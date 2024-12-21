@@ -31,4 +31,5 @@ using namespace MSolver;
 
 template class HADRONS_NAMESPACE::MSolver::TA2AVectors<FIMPL, BaseFermionEigenPack<FIMPL>>;
 template class HADRONS_NAMESPACE::MSolver::TA2AVectors<ZFIMPL, BaseFermionEigenPack<ZFIMPL>>;
+template class HADRONS_NAMESPACE::MSolver::TStagA2AVectors<STAGIMPL, BaseFermionEigenPack<STAGIMPL>>;
 template class HADRONS_NAMESPACE::MSolver::TStagSparseA2AVectors<STAGIMPL, BaseFermionEigenPack<STAGIMPL>>;

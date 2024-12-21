@@ -133,7 +133,7 @@ DependencyMap TRBPrecCG<FImpl, failIfNoConverge>::getObjectDependencies(void)
 ZeroGuesser<FermionField>    defaultGuesser;                                                 \
 LinearFunction<FermionField> &guesser = (guesserPt == nullptr) ? defaultGuesser : *guesserPt;\
 ConjugateGradient<FermionField> cg(par().residual, par().maxIteration, failIfNoConverge);    \
-HADRONS_DEFAULT_SCHUR_SOLVE<FermionField> schurSolver(cg);                                   \
+HADRONS_SCHUR_SOLVE(Staggered)<FermionField> schurSolver(cg);                                   \
 schurSolver.subtractGuess(subGuess);                                                         \
 schurSolver(mat, source, sol, guesser);
 
