@@ -133,7 +133,8 @@ std::string ModuleBase::makeSeedString(void)
     {
         seed += vm().getRunId() + "-";
     }
-    seed += getName() + "-" + std::to_string(vm().getTrajectory());
+    //seed += getName() + "-" + std::to_string(vm().getTrajectory());
+    seed += std::to_string(vm().getTrajectory());
 
     return seed;
 }
