@@ -43,7 +43,6 @@ See the full license in the file "LICENSE" in the top level distribution directo
 #include <Grid/Grid.h>
 #include <Grid/algorithms/iterative/BlockConjugateGradient.h>
 #include <utility>
-#include <Hadrons/Modules/MSolver/Guesser.hpp>
 
 
 BEGIN_HADRONS_NAMESPACE
