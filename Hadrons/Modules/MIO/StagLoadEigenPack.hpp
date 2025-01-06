@@ -57,7 +57,10 @@ public:
 };
 
 MODULE_REGISTER_TMP(StagLoadFermionEigenPack, ARG(TStagLoadEigenPack<FermionEigenPack<STAGIMPL>, GIMPL, STAGIMPL>), MIO);
+#ifdef GRID_DEFAULT_PRECISION_DOUBLE
+MODULE_REGISTER_TMP(StagLoadFermionEigenPackIo32, ARG(TStagLoadEigenPack<FermionEigenPack<STAGIMPL, STAGIMPLF>, GIMPL, STAGIMPL>), MIO);
 
+#endif
 /******************************************************************************
  *                    TStagLoadEigenPack implementation                           *
  ******************************************************************************/
