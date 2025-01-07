@@ -59,7 +59,6 @@ public:
                                     std::string, eigenPack,
                                     std::string, solver,
                                     std::string, action,
-                                    bool, precision,
                                     double, mass,
                                     int, tinc,
                                     int, block,
@@ -219,28 +218,10 @@ void TStagMesonLoopCCHL4D<FImpl1, FImpl2>::execute(void)
     envGetTmp(FermionField, w);
 
 
-    std::vector<double> evalD(Nl_); 
     
-    if (par().precision){ 
-        for (int i = 0; i < epack.eval.size(); ++i) { 
-            
-            evalD[i] = static_cast<double>(epack.eval[i]);         
-        }
-    } 
-    else{ 
-        evalD = epack.eval;
-    } 
-    
-    LOG(Message) << "After precision change " << std::endl;
-    
-    //for (int ss=0; ss<20; ss++){
-        //auto evec_v = epack.evec[0].View(CpuRead);
-        //LOG(Message) << "epack.evec[0] "<< evec_v[ss] << std::endl;
-        
-    //}
     
     for(int i=0;i<Nl_;i++){
-        mlsq[i]=(evalD[i]-mass*mass) * mass;
+        mlsq[i]=(epack.eval[i]-mass*mass) * mass;
     }
     DeflatedGuesser<FermionField> LLsub(epack.evec, mlsq);
     
@@ -311,7 +292,7 @@ void TStagMesonLoopCCHL4D<FImpl1, FImpl2>::execute(void)
             }
         }
         for(int iv=0;iv<Nl_;iv++){
-            std::complex<double> eval(mass,sqrt(evalD[iv]-mass*mass));
+            std::complex<double> eval(mass,sqrt(epack.eval[iv]-mass*mass));
             for(int pm=0;pm<2;pm++){
                 
                 a2a.makeLowModeW(w, epack.evec[iv], eval, pm);
