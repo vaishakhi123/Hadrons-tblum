@@ -150,6 +150,7 @@ GridParallelRNG & ModuleBase::rng4d(void)
         seed_ = seed;
         LOG(Message) << "Seeding 4D RNG " << &r << " with string '" 
                      << seed_ << "'" << std::endl;
+        LOG(Message) << "WARNING: Seeding 4D RNG with RunId + Traj ONLY " << std::endl;
         r.SeedUniqueString(seed_);
     }
 
