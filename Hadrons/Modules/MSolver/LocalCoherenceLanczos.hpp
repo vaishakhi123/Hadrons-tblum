@@ -186,6 +186,12 @@ void TLocalCoherenceLanczos<FImpl, nBasis, FImplIo>::execute(void)
     if (!par().output.empty())
     {
         epack.writeFine(par().output, par().multiFile, vm().getTrajectory());
+#ifdef USE_QLATTICE
+        if(par().output.find("shuffle")!=std::string::npos){
+            qlat::clear_shuffled_fields_writer_cache();
+            qlat::clear_shuffled_fields_reader_cache();
+        }
+#endif
     }
     if (par().doCoarse)
     {

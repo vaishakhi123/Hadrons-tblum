@@ -178,6 +178,11 @@ void TStagLoadEigenPack<Pack, GImpl, FImpl>::execute(void)
         }
         stopTimer("Transform application");
     }
+#ifdef USE_QLATTICE
+    if(par().filestem.find("shuffle")!=std::string::npos){
+        qlat::clear_shuffled_fields_reader_cache();
+    }
+#endif
 }
 
 END_MODULE_NAMESPACE
