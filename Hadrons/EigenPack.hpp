@@ -232,13 +232,6 @@ namespace EigenPackIo
             ioBuf.reset(new TIo(gridIo));
             testBuf.reset(new T(grid));
         }
-        // Qlattice shuffle field write
-        if(filename.find("shuffle")!=std::string::npos){
-            const qlat::Coordinate new_size_node(1,1,1,1);
-            const bool is_append = false;
-            const bool is_removing_old = true;
-            qlat::get_shuffled_fields_writer(filename, new_size_node, is_append, is_removing_old);
-        }
         if (multiFile)
         {
             std::string fullFilename;
