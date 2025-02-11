@@ -280,7 +280,7 @@ void TStagMesonLoopCCHL<FImpl1, FImpl2>::execute(void)
                     // sum evecs over block
                     srcb = 0.;
                     snkb = 0.;
-                    for(int il=0;il<par().blockSize;il++){
+                    thread_for(il,par().blockSize,{
                         
                         int ivec = il+ib*par().blockSize;
                         int idx=il+par().blockSize*(ib+numb*(ih+par().numHits*(mu+3*ts)));
@@ -302,11 +302,10 @@ void TStagMesonLoopCCHL<FImpl1, FImpl2>::execute(void)
                         }
                         // source and sink block vectors
                         w *= eta[idx];
-                        snkb += w;
+                        thread_critical{snkb += w;}
                         w *= 1./phase;
-                        srcb += w;
-                    }
-                    // split grid here?
+                        thread_critical{srcb += w;}
+                    });
                     
                     tmp = where(t == ts, srcb, srcb*0.);
                     tmp2 = adj(Umu[mu]) * tmp;
