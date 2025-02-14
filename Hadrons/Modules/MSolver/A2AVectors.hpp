@@ -954,6 +954,12 @@ void TStagSparseA2AVectorsEvecIo<FImpl>::execute(void)
 //        }
         // end debug /////////////////////////////
         
+        // in case of edge effects...
+        v[il] = Zero();
+        w0[il] = Zero();
+        w1[il] = Zero();
+        w2[il] = Zero();
+    
         for (int mu=0;mu<3;mu++){
             
             phases=1.0;
