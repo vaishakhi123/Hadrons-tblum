@@ -745,8 +745,12 @@ void TStagSparseA2AVectorsEvecIo<FImpl>::execute(void)
     A2AVectorsIo::Record record;
     const int traj=vm().getTrajectory();
     
-    LOG(Message) << "Computing all-to-all vectors using evecs " << par().evecPath << " with " << 2*Nl_ << " low modes " << std::endl;
-
+    LOG(Message) << "Computing sparse all-to-all vectors using evecs " << par().evecPath << " with " << 2*Nl_ << " low modes and " << par().inc << " sparse factor" << std::endl;
+    LOG(Message) << " Full grid: " << std::endl;
+    U.Grid()->show_decomposition();
+    LOG(Message) << " Sparse grid: " << std::endl;
+    v[0].Grid()->show_decomposition();
+    
     // Staggered Phases. Do spatial gamma only
     Lattice<iScalar<vInteger> > x(U.Grid()); LatticeCoordinate(x,0);
     Lattice<iScalar<vInteger> > y(U.Grid()); LatticeCoordinate(y,1);
@@ -757,7 +761,12 @@ void TStagSparseA2AVectorsEvecIo<FImpl>::execute(void)
     FermionField temp(U.Grid());
     FermionField temp2(U.Grid());
     FermionField tempRb(env().getRbGrid());
-    
+    tempRb.Checkerboard() = Odd;
+    assert(tempRb.Checkerboard() == Odd);
+    LOG(Message) << " Checkerboard grid: " << std::endl;
+    tempRb.Grid()->show_decomposition();
+    LOG(Message) << " Checkerboard dimension: "<< tempRb.Grid()->_checker_dim  << std::endl;
+
     // step size for hypercube loop
     int step=2*par().inc;
     //std::random_device rd;  // a seed source for the random number engine
@@ -813,13 +822,13 @@ void TStagSparseA2AVectorsEvecIo<FImpl>::execute(void)
         qcoor[3]=pcoor[3];
         qlat::begin_once(qlat::index_from_coordinate(qcoor,qsizes),qsizes);
     }
-    printf("my node %d local tsites= %d\n", tempRb.Grid()->_processor_coor[3],loct);
-    printf("my node %d global t start= %d\n", U.Grid()->_processor_coor[3], lstartt);
+    //printf("my node %d local tsites= %d\n", tempRb.Grid()->_processor_coor[3],loct);
+    //printf("my node %d global t start= %d\n", U.Grid()->_processor_coor[3], lstartt);
     LOG(Message) << "xshift" << xshift << std::endl;
     LOG(Message) << "yshift" << yshift << std::endl;
     LOG(Message) << "zshift" << zshift << std::endl;
     qlat::Coordinate grid_layout;
-    Coordinate  gLattice = tempRb.Grid()->GlobalDimensions();;
+    Coordinate  gLattice = tempRb.Grid()->GlobalDimensions();
     grid_layout[0]=gLattice[0];
     grid_layout[1]=gLattice[1];
     grid_layout[2]=gLattice[2];
@@ -830,7 +839,7 @@ void TStagSparseA2AVectorsEvecIo<FImpl>::execute(void)
     
     for (unsigned int il = 0; il < 2*Nl_; il++)
     {
-        startTimer("W low mode");
+        //startTimer("W low mode");
         LOG(Message) << "W vector i = " << il << " (low modes)" << std::endl;
         // don't divide by lambda. Do it in contraction since it is complex
         // read in evec...
@@ -886,21 +895,38 @@ void TStagSparseA2AVectorsEvecIo<FImpl>::execute(void)
                 qassert(total_site[1] == grid_layout[1]);
                 qassert(total_site[2] == grid_layout[2]);
                 qassert(total_site[3] == grid_layout[3]);
+                qassert(U.Grid()->GlobalDimensions()[0] == total_site[0] * 2);
+                qassert(U.Grid()->GlobalDimensions()[1] == total_site[1]);
+                qassert(U.Grid()->GlobalDimensions()[2] == total_site[2]);
+                qassert(U.Grid()->GlobalDimensions()[3] == total_site[3]);
+                
             }
             {
-                //qthread_for(index, f.geo().local_volume(), {
-                for(int index=0;index<f.geo().local_volume();++index) {
+                qthread_for(index, f.geo().local_volume(), {
+                //for(int index=0;index<f.geo().local_volume();++index) {
                     qlat::Coordinate xl = f.geo().coordinate_from_index(index);
+// don't know why this works / is needed
+                    xl[0] *= 2;
+// did not try this
+//                    {
+//                        if ((xl[0] + xl[1] + xl[2] + xl[3]) % 2 == 0) {
+//                            xl[0] += 1;
+//                        }
+//                    }
                     Coordinate coor = qlat::grid_convert(xl);
                     qlat::Vector<ComplexD> v = f.get_elems(index);
                     qlat::array<ComplexD, 3> fs;
+//                    if (il == 0) {
+//                        std::cout << "evec " << il
+//                        << " xl " << qlat::show(xl)
+//                        << " coor " << coor << " " << v[0] << std::endl;
+//                    }
                     for (int m = 0; m < 3; ++m) {
                         fs[m] = v[m];
-                        //std::cout << "evec " << il << " " << coor << " " << v[m] << std::endl;
                     }
                     pokeLocalSite(fs, tempRb, coor);
-                    //});
-                }
+                });
+                //}
             }
             //LOG(Message) << "evec "<< il <<" norm^2 " << norm2(tempRb) << std::endl;
             // eval of unpreconditioned Dirac op from lime meta file
@@ -911,12 +937,11 @@ void TStagSparseA2AVectorsEvecIo<FImpl>::execute(void)
                                std::string(SCIDAC_RECORD_XML));
             GLR.close();
             
-            tempRb.Checkerboard() = Odd;
         }
         
         std::complex<RealD> eval(mass,sqrt(_vecRecord.eval-mass*mass));
         a2a.makeLowModeW(temp, tempRb, eval, il%2);
-        stopTimer("W low mode");
+        //stopTimer("W low mode");
         
         il%2 ? eval=conjugate(eval) : eval ;
         evalM[il]=eval;
