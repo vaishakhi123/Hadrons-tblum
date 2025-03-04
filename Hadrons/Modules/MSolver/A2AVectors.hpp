@@ -631,6 +631,7 @@ public:
                                     std::string, action,
                                     std::string, gauge,
                                     std::string, evecPath,
+                                    std::string, evecTag,
                                     std::string, output,
                                     int, numEvecs,
                                     int, inc,
@@ -847,7 +848,7 @@ void TStagSparseA2AVectorsEvecIo<FImpl>::execute(void)
             long evec_idx = il / 2;
             std::string tag = qlat::ssprintf("meta%ld.txt", evec_idx);
             //old tag
-            std::string file = qlat::ssprintf("%s/../meta%ld.txt",     par().evecPath.c_str(), evec_idx);
+            std::string file = qlat::ssprintf("%s/meta%ld.txt",     par().evecTag.c_str(), evec_idx);
             qlat::Field<Complex> f;
             bool IsFileFloat = true;
             bool IsBigEndian = true;
