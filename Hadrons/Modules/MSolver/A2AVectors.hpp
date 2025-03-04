@@ -846,7 +846,8 @@ void TStagSparseA2AVectorsEvecIo<FImpl>::execute(void)
         if(il%2==0){
             long evec_idx = il / 2;
             std::string tag = qlat::ssprintf("meta%ld.txt", evec_idx);
-            std::string file = qlat::ssprintf("%s/meta%ld.txt",     par().evecPath.c_str(), evec_idx);
+            //old tag
+            std::string file = qlat::ssprintf("%s/../meta%ld.txt",     par().evecPath.c_str(), evec_idx);
             qlat::Field<Complex> f;
             bool IsFileFloat = true;
             bool IsBigEndian = true;
