@@ -905,30 +905,16 @@ void TStagSparseA2AVectorsEvecIo<FImpl>::execute(void)
             }
             {
                 qthread_for(index, f.geo().local_volume(), {
-                //for(int index=0;index<f.geo().local_volume();++index) {
                     qlat::Coordinate xl = f.geo().coordinate_from_index(index);
-// don't know why this works / is needed
                     xl[0] *= 2;
-// did not try this
-//                    {
-//                        if ((xl[0] + xl[1] + xl[2] + xl[3]) % 2 == 0) {
-//                            xl[0] += 1;
-//                        }
-//                    }
                     Coordinate coor = qlat::grid_convert(xl);
                     qlat::Vector<ComplexD> v = f.get_elems(index);
                     qlat::array<ComplexD, 3> fs;
-//                    if (il == 0) {
-//                        std::cout << "evec " << il
-//                        << " xl " << qlat::show(xl)
-//                        << " coor " << coor << " " << v[0] << std::endl;
-//                    }
                     for (int m = 0; m < 3; ++m) {
                         fs[m] = v[m];
                     }
                     pokeLocalSite(fs, tempRb, coor);
                 });
-                //}
             }
             //LOG(Message) << "evec "<< il <<" norm^2 " << norm2(tempRb) << std::endl;
             // eval of unpreconditioned Dirac op from lime meta file
@@ -948,40 +934,6 @@ void TStagSparseA2AVectorsEvecIo<FImpl>::execute(void)
         il%2 ? eval=conjugate(eval) : eval ;
         evalM[il]=eval;
         
-        // debug //////////////////////////////////
-//        ColourVector cvec;
-//        int lxrb=tempRb.Grid()->_ldimensions[0];
-//        int lyrb=tempRb.Grid()->_ldimensions[1];
-//        int lzrb=tempRb.Grid()->_ldimensions[2];
-//        int ltrb=tempRb.Grid()->_ldimensions[3];
-//        for(int tl=0;tl<ltrb;tl++){
-//            for(int zl=0;zl<lzrb;zl++){
-//                for(int yl=0;yl<lyrb;yl++){
-//                    for(int xl=0;xl<lxrb;xl++){
-//                        Coordinate site(Nd);
-//                        site[0]=xl;site[1]=yl;site[2]=zl;site[3]=tl;
-//                        peekLocalSite(cvec,tempRb,site);
-//                        LOG(Message) << "evec " << il << " " << site << " " << cvec << std::endl;
-//                    }
-//                }
-//            }
-//        }
-//
-//        for(int tl=0;tl<loct;tl++){
-//            for(int zl=0;zl<locz;zl++){
-//                for(int yl=0;yl<locy;yl++){
-//                    for(int xl=0;xl<locx;xl++){
-//                        Coordinate site(Nd);
-//                        site[0]=xl;site[1]=yl;site[2]=zl;site[3]=tl;
-//                        peekLocalSite(cvec,temp,site);
-//                        LOG(Message) << "W vec " << il << " " << site << " " << cvec << std::endl;
-//                    }
-//                }
-//            }
-//        }
-        // end debug /////////////////////////////
-        
-        // in case of edge effects...
         v[il] = Zero();
         w0[il] = Zero();
         w1[il] = Zero();
@@ -1061,10 +1013,8 @@ void TStagSparseA2AVectorsEvecIo<FImpl>::execute(void)
                                                         
                                                         if(mu==0){// do v once
                                                             peekLocalSite(vec,temp,site);
-//LOG(Message) << "Sparse V vec " << il << " " << sparseSite << " " << vec << std::endl;
                                                             pokeLocalSite(vec,v[il],sparseSite);
                                                             peekLocalSite(vec,temp2,site);
-//LOG(Message) << "Sparse W0 vec " << il << " " << sparseSite << " " << vec << std::endl;
                                                             pokeLocalSite(vec,w0[il],sparseSite);
                                                         }else if(mu==1){
                                                             peekLocalSite(vec,temp2,site);
