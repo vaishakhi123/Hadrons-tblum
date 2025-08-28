@@ -80,7 +80,8 @@ public:
     {
     public:
         GRID_SERIALIZABLE_CLASS_MEMBERS(Result,
-                                        std::vector<Complex>, corr);
+                                        std::vector<Complex>, corr,
+                                        std::vector<std::vector<Complex>>, corr_all);
     };
 public:
     // constructor
@@ -173,8 +174,13 @@ void TStagMesonLoopCCHL4D<FImpl1, FImpl2>::execute(void)
     // init
     for(int mu=0;mu<3;mu++){
         result[mu].corr.resize(nt);
+        result[mu].corr_all.resize(nt, std::vector<ComplexD>(nt, ComplexD(0.,0.)));
         for(int t=0;t<nt;t++){
             result[mu].corr[t]=(ComplexD)(0.,0.);
+            for (int dt = 0; dt < nt; dt++) {
+                    result[mu].corr_all[t][dt] = (ComplexD)(0.,0.);
+            }
+            
         }
     }
 
@@ -368,6 +374,7 @@ void TStagMesonLoopCCHL4D<FImpl1, FImpl2>::execute(void)
                     
                     for(int tsnk=0; tsnk<nt; tsnk++){
                         result[mu].corr[(tsnk-ts+nt)%nt] += (corr[tsnk]);
+                        result[mu].corr_all[ts][(tsnk - ts + nt) % nt] += (corr[tsnk]);
                     }
             
                     // take inner-product with eigenmode on all time slices
@@ -377,6 +384,7 @@ void TStagMesonLoopCCHL4D<FImpl1, FImpl2>::execute(void)
                     sliceInnerProductVector(corr,sourceshift,sol,3); //fourth term
                     for(int tsnk=0; tsnk<nt; tsnk++){
                         result[mu].corr[(tsnk-ts+nt)%nt] += (corr[tsnk]); 
+                        result[mu].corr_all[ts][(tsnk - ts + nt) % nt] += (corr[tsnk]);
                     }
                 }
             }
@@ -388,6 +396,12 @@ void TStagMesonLoopCCHL4D<FImpl1, FImpl2>::execute(void)
             outFileName = par().output+"HLcc_2pt_mu"+std::to_string(i);
             for(int t=0; t<nt; t++)
                 result[i].corr[t] = result[i].corr[t]/std::complex<double>(hits, 0.0);
+            for (int ts = 0; ts < nt; ts++) {
+                for (int dt = 0; dt < nt; dt++) {
+                    result[i].corr_all[ts][dt] /= std::complex<double>(hits, 0.0);
+                }
+            }
+            
             saveResult(outFileName, "HLCC", result[i]);
         }
     }
