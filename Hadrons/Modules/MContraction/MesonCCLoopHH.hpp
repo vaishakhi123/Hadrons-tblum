@@ -268,10 +268,7 @@ void TStagMesonCCLoopHH<FImpl1, FImpl2>::execute(void)
                     srcSite[3]=t;
                     //assert((x+y+z+t)%2==0);// must be Even
 
-                    outFileName = par().output+"/cc_2pt_"+
-                        std::to_string(x)+"_"+
-                        std::to_string(y)+"_"+
-                        std::to_string(z)+"_"+
+                    outFileName = par().output+"/cc_2pt_t_"+
                         std::to_string(t)+"_mu_";
                     std::string file = resultFilename(outFileName+"0","h5");
                     //bool f1 = std::__fs::filesystem::exists(file);
