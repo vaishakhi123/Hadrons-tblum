@@ -37,7 +37,9 @@
 #include <Hadrons/A2AVectors.hpp>
 #include <Hadrons/DilutedNoise.hpp>
 
+#ifdef USE_QLATTICE
 #include <qlat/grid.h>
+#endif 
 
 BEGIN_HADRONS_NAMESPACE
 

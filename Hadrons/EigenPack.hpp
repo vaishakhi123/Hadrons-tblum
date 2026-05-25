@@ -153,8 +153,10 @@ namespace EigenPackIo
                 readElement(evec[k - ki], eval[k - ki], k, binReader, ioBuf.get());
                 binReader.close();
             }
+#ifdef USE_QLATTICE
             if(filename.find("shuffle")!=std::string::npos)
                 qlat::close_shuffled_fields_reader(filename);
+#endif
         }
         else
         {
@@ -251,8 +253,10 @@ namespace EigenPackIo
                 writeElement(binWriter, evec[k - ki], eval[k - ki], k, ioBuf.get(), testBuf.get());
                 binWriter.close();
             }
+#ifdef USE_QLATTICE
             if(filename.find("shuffle")!=std::string::npos)
                 qlat::close_shuffled_fields_writer(filename);
+#endif
         }
         else
         {
