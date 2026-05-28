@@ -34,6 +34,10 @@ See the full license in the file "LICENSE" in the top level distribution directo
 #include <Hadrons/Module.hpp>
 #include <Hadrons/ModuleFactory.hpp>
 #include <Hadrons/A2AMatrix.hpp>
+#include <Hadrons/A2AVectors.hpp>
+#include <Hadrons/EigenPack.hpp>
+#include <Grid/Grid.h>
+#include <Grid/qcd/utils/A2Autils.h>
 
 BEGIN_HADRONS_NAMESPACE
 
@@ -86,7 +90,8 @@ public:
                             const unsigned int orthogDim,
                             double &t)
     {
-        A2Autils<FImpl>::StagMesonField(m, left, right, orthogDim, &t);
+	double t_gsum = 0.0;
+        A2Autils<FImpl>::StagMesonField(m, left, right, orthogDim, &t, &t_gsum);
     }
     
     virtual double flops(const unsigned int blockSizei, const unsigned int blockSizej)
