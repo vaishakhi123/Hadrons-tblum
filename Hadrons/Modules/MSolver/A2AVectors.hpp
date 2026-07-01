@@ -744,6 +744,10 @@ void TStagSparseA2AVectorsGridIo<FImpl>::execute(void)
     // scratch space: only one eigenvector in memory at a time
     FermionField tempEvec(env().getRbGrid());
     tempEvec.Checkerboard() = Odd;
+    assert(tempEvec.Checkerboard() == Odd);
+    LOG(Message) << " Checkerboard grid: " << std::endl;
+    tempEvec.Grid()->show_decomposition();
+    LOG(Message) << " Checkerboard dimension: "<< tempEvec.Grid()->_checker_dim  << std::endl;
     RealD currentEval = 0.;
     PackRecord packRecord;
     ScidacReader binReader;
@@ -753,11 +757,7 @@ void TStagSparseA2AVectorsGridIo<FImpl>::execute(void)
     std::string stem    = par().evecPath + t;          // directory for multiFile
     std::string binFile = par().evecPath + t + ".bin"; // single-file path
 
-    if (!par().multiFile)
-    {
-        binReader.open(binFile);
-        EigenPackIo::readHeader(packRecord, binReader);
-    }
+   
 
     LOG(Message) << "Computing sparse A2A vectors streaming " << 2*Nl_
                  << " low modes from " << (par().multiFile ? stem : binFile) << std::endl;
@@ -808,6 +808,14 @@ void TStagSparseA2AVectorsGridIo<FImpl>::execute(void)
     LOG(Message) << "yshift" << yshift << std::endl;
     LOG(Message) << "zshift" << zshift << std::endl;
 
+    // For single-file mode: open once before the loop to avoid repeated
+    // MPI_File_open/close cycles which exhaust GPFS/OMPIO resources (~974 opens).
+    if (!par().multiFile)
+    {
+        binReader.open(binFile);
+        EigenPackIo::readHeader(packRecord, binReader);
+    }
+
     for (unsigned int il = 0; il < 2*Nl_; il++)
     {
         // read a new eigenvector from disk every other iteration
@@ -828,18 +836,40 @@ void TStagSparseA2AVectorsGridIo<FImpl>::execute(void)
                 EigenPackIo::readElement(tempEvec, currentEval, k, binReader);
             }
             stopTimer("evec read");
+	    if (il == 0)
+            {
+                LOG(Message) << "tempEvec grid dimensions: " << tempEvec.Grid()->GlobalDimensions() << std::endl;
+                LOG(Message) << "Full grid dimensions:     " << U.Grid()->GlobalDimensions() << std::endl;
+                LOG(Message) << "RbGrid dimensions:        " << env().getRbGrid()->GlobalDimensions() << std::endl;
+                LOG(Message) << "norm2(tempEvec)=          " << norm2(tempEvec) << std::endl;
+	    }
         }
 
-        // eval of unpreconditioned Dirac op from the eigenvalue just read
-        std::complex<double> eval(mass, sqrt(currentEval - mass*mass));
-
-        startTimer("W low mode");
+        //std::complex<double> eval(mass, sqrt(currentEval));
+        
+	double lambda;
+        if (currentEval < mass * mass)
+        {
+            lambda = sqrt(currentEval);
+            if (il == 0)
+                LOG(Message) << "Eigenpack convention: massless D†D (currentEval < m²)" << std::endl;
+        }
+        else
+        {
+            lambda = sqrt(currentEval - mass * mass);
+            if (il == 0)
+                LOG(Message) << "Eigenpack convention: massive (D+m)†(D+m) (currentEval >= m²)" << std::endl;
+        }
+        std::complex<double> eval(mass, lambda);
+	
+	startTimer("W low mode");
         LOG(Message) << "W vector i = " << il << " (low modes)" << std::endl;
         // don't divide by lambda — do it in contraction since it is complex
         a2a.makeLowModeW(temp, tempEvec, eval, il%2);
         stopTimer("W low mode");
-
-        il%2 ? eval=conjugate(eval) : eval ;
+        
+        
+	il%2 ? eval=conjugate(eval) : eval ;
         evalM[il]=eval;
 
         v[il]  = Zero();
