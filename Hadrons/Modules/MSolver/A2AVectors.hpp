@@ -847,21 +847,21 @@ void TStagSparseA2AVectorsGridIo<FImpl>::execute(void)
 
         //std::complex<double> eval(mass, sqrt(currentEval));
         
-	double lambda;
+        double lambda;
         if (currentEval < mass * mass)
         {
             lambda = sqrt(currentEval);
             if (il == 0)
-                LOG(Message) << "Eigenpack convention: massless D†D (currentEval < m²)" << std::endl;
+                LOG(Message) << "Eigenpack convention: massless DdagD (currentEval < m^2)" << std::endl;
         }
         else
         {
             lambda = sqrt(currentEval - mass * mass);
             if (il == 0)
-                LOG(Message) << "Eigenpack convention: massive (D+m)†(D+m) (currentEval >= m²)" << std::endl;
+                LOG(Message) << "Eigenpack convention: massive (D+m)dag(D+m) (currentEval >= m^2)" << std::endl;
         }
         std::complex<double> eval(mass, lambda);
-	
+
 	startTimer("W low mode");
         LOG(Message) << "W vector i = " << il << " (low modes)" << std::endl;
         // don't divide by lambda — do it in contraction since it is complex
