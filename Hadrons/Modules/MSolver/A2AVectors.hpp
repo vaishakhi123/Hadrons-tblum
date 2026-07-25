@@ -845,28 +845,18 @@ void TStagSparseA2AVectorsGridIo<FImpl>::execute(void)
 	    }
         }
 
-        //std::complex<double> eval(mass, sqrt(currentEval));
+        std::complex<double> eval(mass, sqrt(currentEval));
+	// MILC lambda = 2 x Grid lambda (MILC factors out 1/2 from hopping term).
+        // Pass lambda/2 to makeLowModeW so the even-site reconstruction is correct.
+        std::complex<double> eval_grid(mass, sqrt(currentEval) / 2.0);
         
-        double lambda;
-        if (currentEval < mass * mass)
-        {
-            lambda = sqrt(currentEval);
-            if (il == 0)
-                LOG(Message) << "Eigenpack convention: massless DdagD (currentEval < m^2)" << std::endl;
-        }
-        else
-        {
-            lambda = sqrt(currentEval - mass * mass);
-            if (il == 0)
-                LOG(Message) << "Eigenpack convention: massive (D+m)dag(D+m) (currentEval >= m^2)" << std::endl;
-        }
-        std::complex<double> eval(mass, lambda);
 
 	startTimer("W low mode");
         LOG(Message) << "W vector i = " << il << " (low modes)" << std::endl;
         // don't divide by lambda — do it in contraction since it is complex
-        a2a.makeLowModeW(temp, tempEvec, eval, il%2);
-        stopTimer("W low mode");
+        a2a.makeLowModeW(temp, tempEvec, eval_grid, il%2);
+        if (il < 2) LOG(Message) << "norm2(W low mode, il=" << il << ") = " << norm2(temp) << std::endl;
+	stopTimer("W low mode");
         
         
 	il%2 ? eval=conjugate(eval) : eval ;
@@ -1317,6 +1307,7 @@ void TStagSparseA2AVectorsEvecIo<FImpl>::execute(void)
         
         std::complex<RealD> eval(mass,sqrt(_vecRecord.eval-mass*mass));
         a2a.makeLowModeW(temp, tempRb, eval, il%2);
+	if (il < 2) LOG(Message) << "norm2(W low mode, il=" << il << ") = " << norm2(temp) << std::endl;
         //stopTimer("W low mode");
         
         il%2 ? eval=conjugate(eval) : eval ;
