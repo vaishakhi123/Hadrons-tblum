@@ -58,7 +58,8 @@ public:
                                   std::string, solver,
                                   std::string, output,
                                   double, mass,
-                                  bool,        multiFile);
+                                  bool,        multiFile,
+				  bool, milcEvecs);
 };
 
 template <typename FImpl, typename Pack>
@@ -846,15 +847,14 @@ void TStagSparseA2AVectorsGridIo<FImpl>::execute(void)
         }
 
         std::complex<double> eval(mass, sqrt(currentEval));
-	// MILC lambda = 2 x Grid lambda (MILC factors out 1/2 from hopping term).
-        // Pass lambda/2 to makeLowModeW so the even-site reconstruction is correct.
-        std::complex<double> eval_grid(mass, sqrt(currentEval) / 2.0);
-        
+        // MILC eigenvectors use D without the 1/2 hopping factor, so their
+        // lambda is 2x Grid's. Halve it for the even-site W reconstruction.
+        std::complex<double> eval_for_W = par().milcEvecs? std::complex<double>(mass, sqrt(currentEval) / 2.0): eval;
 
 	startTimer("W low mode");
         LOG(Message) << "W vector i = " << il << " (low modes)" << std::endl;
         // don't divide by lambda — do it in contraction since it is complex
-        a2a.makeLowModeW(temp, tempEvec, eval_grid, il%2);
+        a2a.makeLowModeW(temp, tempEvec, eval_for_W, il%2);
         if (il < 2) LOG(Message) << "norm2(W low mode, il=" << il << ") = " << norm2(temp) << std::endl;
 	stopTimer("W low mode");
         
