@@ -1,9 +1,10 @@
 /*
  * LoadA2AVectors.cpp, part of Hadrons (https://github.com/aportelli/Hadrons)
  *
- * Copyright (C) 2015 - 2023
+ * Copyright (C) 2015 - 2026
  *
  * Author: Antonin Portelli <antonin.portelli@me.com>
+ * Author: Vaishakhi Moningi <vaishu.moningi@gmail.com>
  *
  * Hadrons is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -30,3 +31,4 @@ using namespace Hadrons;
 using namespace MIO;
 
 template class HADRONS_NAMESPACE::MIO::TLoadA2AVectors<FIMPL>;
+template class HADRONS_NAMESPACE::MIO::TLoadA2AVectors<STAGIMPL>;

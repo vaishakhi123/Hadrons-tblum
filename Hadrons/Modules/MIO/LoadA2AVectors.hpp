@@ -1,9 +1,10 @@
 /*
  * LoadA2AVectors.hpp, part of Hadrons (https://github.com/aportelli/Hadrons)
  *
- * Copyright (C) 2015 - 2023
+ * Copyright (C) 2015 - 2026
  *
  * Author: Antonin Portelli <antonin.portelli@me.com>
+ * Author: Vaishakhi Moningi <vaishu.moningi@gmail.com>
  *
  * Hadrons is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -42,9 +43,17 @@ class LoadA2AVectorsPar: Serializable
 {
 public:
     GRID_SERIALIZABLE_CLASS_MEMBERS(LoadA2AVectorsPar,
-                                    std::string,  filestem,
-                                    bool,         multiFile,
-                                    unsigned int, size);
+                                    std::string,              filestem,
+                                    std::vector<std::string>, filestems,
+                                    bool,                     multiFile,
+                                    unsigned int,             size,
+                                    int,                      inc,
+                                    int,                      tinc);
+    // inc/tinc: sparse blocking factors; 0 or 1 means use the full (fine)
+    // lattice grid.  Set inc>1 to load vectors living on a coarse grid
+    // (written by StagSparseA2AVectorsGridIo with the same inc/tinc).
+    // filestems: if non-empty, load each stem as a chunk of 'size' vectors
+    // and concatenate them in order. 'filestem' is ignored in that case.
 };
 
 template <typename FImpl>
@@ -66,7 +75,9 @@ public:
     virtual void execute(void);
 };
 
-MODULE_REGISTER_TMP(LoadA2AVectors, TLoadA2AVectors<FIMPL>, MIO);
+MODULE_REGISTER_TMP(LoadA2AVectors,     TLoadA2AVectors<FIMPL>,    MIO);
+MODULE_REGISTER_TMP(StagLoadA2AVectors, TLoadA2AVectors<STAGIMPL>, MIO);
+
 
 /******************************************************************************
  *                      TLoadA2AVectors implementation                        *
@@ -98,17 +109,53 @@ std::vector<std::string> TLoadA2AVectors<FImpl>::getOutput(void)
 template <typename FImpl>
 void TLoadA2AVectors<FImpl>::setup(void)
 {
-    envCreate(std::vector<FermionField>, getName(), 1, par().size, 
-              envGetGrid(FermionField));
+    int inc  = (par().inc  <= 0) ? 1 : par().inc;
+    int tinc = (par().tinc <= 0) ? 1 : par().tinc;
+    int nchunks = par().filestems.empty() ? 1 : (int)par().filestems.size();
+
+    GridBase *grid;
+    if (inc > 1 || tinc > 1)
+    {
+        std::vector<int> bs = {inc, inc, inc, tinc};
+        grid = envGetCoarseGrid(FermionField, bs);
+    }
+    else
+        grid = envGetGrid(FermionField);
+
+    envCreate(std::vector<FermionField>, getName(), 1,
+              nchunks * par().size, grid);
 }
 
 // execution ///////////////////////////////////////////////////////////////////
 template <typename FImpl>
 void TLoadA2AVectors<FImpl>::execute(void)
 {
-    auto &vec = envGet(std::vector<FermionField>, getName());
+    auto      &vec  = envGet(std::vector<FermionField>, getName());
+    const int  traj = vm().getTrajectory();
 
-    A2AVectorsIo::read(vec, par().filestem, par().multiFile, vm().getTrajectory());
+    if (par().filestems.empty())
+    {
+        // single file — original behaviour
+        A2AVectorsIo::read(vec, par().filestem, par().multiFile, traj);
+    }
+    else
+    {
+        // multi-chunk: load into a temporary vector sized per chunk so that
+        // the record.index check in A2AVectorsIo::read (which expects indices
+        // 0..size-1) stays satisfied, then copy into the correct slice of vec.
+        int        chunkSz = (int)par().size;
+        GridBase  *grid    = vec[0].Grid();
+
+        for (int c = 0; c < (int)par().filestems.size(); c++)
+        {
+            LOG(Message) << "Loading chunk " << c
+                         << " from " << par().filestems[c] << std::endl;
+            std::vector<FermionField> tmp(chunkSz, grid);
+            A2AVectorsIo::read(tmp, par().filestems[c], par().multiFile, traj);
+            for (int i = 0; i < chunkSz; i++)
+                vec[c * chunkSz + i] = tmp[i];
+        }
+    }
 }
 
 END_MODULE_NAMESPACE
