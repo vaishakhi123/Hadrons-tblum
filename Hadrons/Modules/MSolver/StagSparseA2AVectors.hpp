@@ -37,6 +37,9 @@ BEGIN_HADRONS_NAMESPACE
 
 /******************************************************************************
  * Sparsened staggered A2A vectors streaming eigenvectors from Grid LIME files *
+ * Single-file mode: opens the file once; uses skipScidacFieldRecord() to     *
+ * seek past evecStart records in O(1) I/O — no data reads during the skip.  *
+ * Multi-file mode: opens each eigenvector file directly.                     *
  ******************************************************************************/
 BEGIN_MODULE_NAMESPACE(MSolver)
 
@@ -48,13 +51,13 @@ public:
                                     std::string, gauge,
                                     std::string, evecPath,
                                     std::string, output,
-                                    int, numEvecs,
-                                    int, evecStart,
-                                    int, inc,
-                                    int, tinc,
-                                    double, mass,
-                                    bool, multiFile,
-                                    bool, milcEvecs);
+                                    int,         numEvecs,
+                                    int,         evecStart,
+                                    int,         inc,
+                                    int,         tinc,
+                                    double,      mass,
+                                    bool,        multiFile,
+                                    bool,        milcEvecs);
 };
 
 template <typename FImpl>
@@ -93,19 +96,15 @@ template <typename FImpl>
 std::vector<std::string> TStagSparseA2AVectorsGridIo<FImpl>::getInput(void)
 {
     std::vector<std::string> in;
-
     in.push_back(par().gauge);
     in.push_back(par().action);
-
     return in;
 }
 
 template <typename FImpl>
 std::vector<std::string> TStagSparseA2AVectorsGridIo<FImpl>::getOutput(void)
 {
-    std::vector<std::string> out = {getName() +"_v", getName() +"_w0", getName() +"_w1", getName() +"_w2"};
-
-    return out;
+    return {getName()+"_v", getName()+"_w0", getName()+"_w1", getName()+"_w2"};
 }
 
 // setup ///////////////////////////////////////////////////////////////////////
@@ -119,18 +118,12 @@ void TStagSparseA2AVectorsGridIo<FImpl>::setup(void)
                  << " evecStart=" << par().evecStart
                  << " inc=" << par().inc
                  << " tinc=" << par().tinc << std::endl;
+
     envTmp(A2A, "a2a", 1, action);
-    // allocate tempEvec through the environment so it uses the same
-    // accelerator memory management as other fields (important for GPU runs)
     envTmp(FermionField, "tempEvec", 1, envGetRbGrid(FermionField));
 
-    // Sparse Grid: clamp to >=1 so a zero inc/tinc never causes divide-by-zero
-    // in Environment::createCoarseGrid (which is called even during memory profiling)
     int bsinc  = par().inc  > 0 ? par().inc  : 1;
     int bstinc = par().tinc > 0 ? par().tinc : 1;
-    // When inc==tinc==1 there is no spatial blocking — use the standard fine grid
-    // so that ScidacWriter can serialise the fields correctly on all MPI ranks.
-    // Only go to a coarse grid when actual blocking (inc or tinc > 1) is requested.
     GridBase *sgrid;
     if (bsinc > 1 || bstinc > 1)
     {
@@ -141,25 +134,21 @@ void TStagSparseA2AVectorsGridIo<FImpl>::setup(void)
     {
         sgrid = envGetGrid(SparseFermionField);
     }
-    envCreate(std::vector<SparseFermionField>, getName() + "_v", 1,
-              2*Nl_, sgrid);
-    envCreate(std::vector<SparseFermionField>, getName() + "_w0", 1,
-              2*Nl_, sgrid);
-    envCreate(std::vector<SparseFermionField>, getName() + "_w1", 1,
-              2*Nl_, sgrid);
-    envCreate(std::vector<SparseFermionField>, getName() + "_w2", 1,
-              2*Nl_, sgrid);
+    envCreate(std::vector<SparseFermionField>, getName() + "_v",  1, 2*Nl_, sgrid);
+    envCreate(std::vector<SparseFermionField>, getName() + "_w0", 1, 2*Nl_, sgrid);
+    envCreate(std::vector<SparseFermionField>, getName() + "_w1", 1, 2*Nl_, sgrid);
+    envCreate(std::vector<SparseFermionField>, getName() + "_w2", 1, 2*Nl_, sgrid);
 }
 
 // execution ///////////////////////////////////////////////////////////////////
 template <typename FImpl>
 void TStagSparseA2AVectorsGridIo<FImpl>::execute(void)
 {
-    auto     &action = envGet(FMat, par().action);
-    auto     &U      = envGet(LatticeGaugeField, par().gauge);
-    double    mass   = par().mass;
-    uint64_t  nt     = env().getDim(Tp);
-    uint64_t  ns     = env().getDim(Xp);
+    auto    &action = envGet(FMat, par().action);
+    auto    &U      = envGet(LatticeGaugeField, par().gauge);
+    double   mass   = par().mass;
+    uint64_t nt     = env().getDim(Tp);
+    uint64_t ns     = env().getDim(Xp);
     envGetTmp(A2A, a2a);
 
     auto &v  = envGet(std::vector<SparseFermionField>, getName() + "_v");
@@ -168,21 +157,20 @@ void TStagSparseA2AVectorsGridIo<FImpl>::execute(void)
     auto &w2 = envGet(std::vector<SparseFermionField>, getName() + "_w2");
     const int traj = vm().getTrajectory();
 
-    // scratch space: environment-managed so accelerator memory is handled correctly
     envGetTmp(FermionField, tempEvec);
     tempEvec.Checkerboard() = Odd;
     assert(tempEvec.Checkerboard() == Odd);
     LOG(Message) << "tempEvec grid (RbGrid):" << std::endl;
     tempEvec.Grid()->show_decomposition();
     LOG(Message) << "tempEvec checker_dim=" << tempEvec.Grid()->_checker_dim << std::endl;
-    RealD currentEval = 0.;
+
+    RealD    currentEval = 0.;
     PackRecord packRecord;
     ScidacReader binReader;
 
-    // build the base filename from the stem + trajectory (Grid EigenPack convention)
     std::string t       = "." + std::to_string(traj);
-    std::string stem    = par().evecPath + t;          // directory for multiFile
-    std::string binFile = par().evecPath + t + ".bin"; // single-file path
+    std::string stem    = par().evecPath + t;           // directory for multiFile
+    std::string binFile = par().evecPath + t + ".bin";  // single-file path
 
     LOG(Message) << "Computing sparse A2A vectors streaming " << 2*Nl_
                  << " low modes from " << (par().multiFile ? stem : binFile) << std::endl;
@@ -192,39 +180,40 @@ void TStagSparseA2AVectorsGridIo<FImpl>::execute(void)
     LOG(Message) << " Sparse grid: " << std::endl;
     v[0].Grid()->show_decomposition();
 
-    // Staggered Phases. Do spatial gamma only
-    Lattice<iScalar<vInteger> > x(U.Grid()); LatticeCoordinate(x,0);
-    Lattice<iScalar<vInteger> > y(U.Grid()); LatticeCoordinate(y,1);
-    Lattice<iScalar<vInteger> > lin_z(U.Grid()); lin_z=x+y;
+    // Staggered phases (spatial gamma only)
+    Lattice<iScalar<vInteger>> x(U.Grid());     LatticeCoordinate(x, 0);
+    Lattice<iScalar<vInteger>> y(U.Grid());     LatticeCoordinate(y, 1);
+    Lattice<iScalar<vInteger>> lin_z(U.Grid()); lin_z = x + y;
 
     ComplexField phases(U.Grid());
     FermionField temp(U.Grid());
     FermionField temp2(U.Grid());
 
-    int step = 2*par().inc;
-    std::uniform_int_distribution<uint32_t> uid(0, step-1);
-    std::vector<uint32_t> xshift(nt);
-    std::vector<uint32_t> yshift(nt);
-    std::vector<uint32_t> zshift(nt);
+    int step = 2 * par().inc;
+    std::uniform_int_distribution<uint32_t> uid(0, step - 1);
+    std::vector<uint32_t> xshift(nt), yshift(nt), zshift(nt);
     if (par().inc != 1)
     {
-        for (int tt=0; tt<(int)nt; tt++)
+        for (int tt = 0; tt < (int)nt; tt++)
         {
-            xshift[tt]=uid(rngSerial()._generators[0]);
-            yshift[tt]=uid(rngSerial()._generators[0]);
-            zshift[tt]=uid(rngSerial()._generators[0]);
+            xshift[tt] = uid(rngSerial()._generators[0]);
+            yshift[tt] = uid(rngSerial()._generators[0]);
+            zshift[tt] = uid(rngSerial()._generators[0]);
         }
     }
     else
     {
-        for (int tt=0; tt<(int)nt; tt++)
-        { xshift[tt]=0; yshift[tt]=0; zshift[tt]=0; }
+        for (int tt = 0; tt < (int)nt; tt++)
+        { xshift[tt] = 0; yshift[tt] = 0; zshift[tt] = 0; }
     }
-    CartesianCommunicator::BroadcastWorld(0,(void *)&xshift[0],sizeof(uint32_t)*xshift.size());
-    CartesianCommunicator::BroadcastWorld(0,(void *)&yshift[0],sizeof(uint32_t)*yshift.size());
-    CartesianCommunicator::BroadcastWorld(0,(void *)&zshift[0],sizeof(uint32_t)*zshift.size());
+    CartesianCommunicator::BroadcastWorld(0, (void *)&xshift[0], sizeof(uint32_t)*xshift.size());
+    CartesianCommunicator::BroadcastWorld(0, (void *)&yshift[0], sizeof(uint32_t)*yshift.size());
+    CartesianCommunicator::BroadcastWorld(0, (void *)&zshift[0], sizeof(uint32_t)*zshift.size());
+    LOG(Message) << "xshift" << xshift << std::endl;
+    LOG(Message) << "yshift" << yshift << std::endl;
+    LOG(Message) << "zshift" << zshift << std::endl;
 
-    std::vector<complex<double>> evalM(2*Nl_);
+    std::vector<std::complex<double>> evalM(2*Nl_);
 
     int locx    = U.Grid()->_ldimensions[0];
     int locy    = U.Grid()->_ldimensions[1];
@@ -234,42 +223,38 @@ void TStagSparseA2AVectorsGridIo<FImpl>::execute(void)
     int lstarty = U.Grid()->_lstart[1];
     int lstartz = U.Grid()->_lstart[2];
     int lstartt = U.Grid()->_lstart[3];
-    LOG(Message) << "xshift" << xshift << std::endl;
-    LOG(Message) << "yshift" << yshift << std::endl;
-    LOG(Message) << "zshift" << zshift << std::endl;
 
-    // Detect massless/massive convention from eigenvector 0 always, regardless
-    // of evecStart.  Higher chunks (evecStart>0) would otherwise use a large
-    // eigenvalue and misidentify the convention.
+    // Detect convention from evec 0 regardless of evecStart.
+    // For evecStart>0 single-file: open, read header+evec0, close — then reopen
+    // for the main loop.  For multiFile: open v0.bin directly.
     bool masslessDdagD = false;
     {
         RealD eval0 = 0.;
         if (par().evecStart == 0)
         {
-            // Convention will be set inside the main loop (il==0 reads v0).
+            // Convention detected inside the main loop at il==0.
         }
         else if (par().multiFile)
         {
-            // Read v0.bin independently to get the smallest eigenvalue.
             std::string fname0 = stem + "/v0.bin";
             ScidacReader r0;
             FermionField evec0(tempEvec.Grid());
-            PackRecord pr0;
+            PackRecord   pr0;
             r0.open(fname0);
             EigenPackIo::readHeader(pr0, r0);
             EigenPackIo::readElement(evec0, eval0, 0, r0);
             r0.close();
             masslessDdagD = (eval0 < mass * mass);
-            LOG(Message) << "Eigenpack convention (from v0): "
+            LOG(Message) << "Eigenpack convention (from v0.bin): "
                          << (masslessDdagD ? "massless DdagD" : "massive (D+m)dag(D+m)")
                          << " (eval0=" << eval0 << ", m^2=" << mass*mass << ")" << std::endl;
         }
         else
         {
-            // Single-file: open, read element 0, close; we reopen below for the real loop.
+            // Single-file: open, read header, read evec 0, close.
             ScidacReader r0;
             FermionField evec0(tempEvec.Grid());
-            PackRecord pr0;
+            PackRecord   pr0;
             r0.open(binFile);
             EigenPackIo::readHeader(pr0, r0);
             EigenPackIo::readElement(evec0, eval0, 0, r0);
@@ -281,31 +266,31 @@ void TStagSparseA2AVectorsGridIo<FImpl>::execute(void)
         }
     }
 
-    // For single-file mode: open once before the loop to avoid repeated
-    // MPI_File_open/close cycles which exhaust GPFS/OMPIO resources.
+    // Open single file once; use skipScidacFieldRecord() to seek past evecStart
+    // records — this reads only LIME headers (~bytes) and calls fseek() past the
+    // binary data, so it is near-instantaneous even for large evecStart.
     if (!par().multiFile)
     {
         binReader.open(binFile);
         EigenPackIo::readHeader(packRecord, binReader);
-        // Skip evecStart records so the read loop starts at the right offset.
         if (par().evecStart > 0)
         {
-            LOG(Message) << "Skipping " << par().evecStart << " eigenvectors (evecStart)" << std::endl;
-            FermionField skipEvec(tempEvec.Grid());
-            RealD        skipEval = 0.;
+            LOG(Message) << "Fast-seeking past " << par().evecStart
+                         << " eigenvectors (LIME header seek, no data read)" << std::endl;
             for (int sk = 0; sk < par().evecStart; sk++)
-                EigenPackIo::readElement(skipEvec, skipEval, sk, binReader);
+                binReader.skipScidacFieldRecord();
+            LOG(Message) << "Seek complete." << std::endl;
         }
     }
 
     for (unsigned int il = 0; il < 2*Nl_; il++)
     {
-        // read a new eigenvector from disk every other iteration
         if (il % 2 == 0)
         {
-            int k = il / 2;
-            int kabs = k + par().evecStart;  // absolute index into eigenpack
+            int k    = il / 2;
+            int kabs = k + par().evecStart;
             startTimer("evec read");
+            LOG(Message) << "Reading eigenvector " << kabs << std::endl;
             if (par().multiFile)
             {
                 std::string fname = stem + "/v" + std::to_string(kabs) + ".bin";
@@ -316,23 +301,17 @@ void TStagSparseA2AVectorsGridIo<FImpl>::execute(void)
             }
             else
             {
-                // File already open; read sequentially (evecStart records already
-                // consumed before the loop for single-file mode).
                 EigenPackIo::readElement(tempEvec, currentEval, kabs, binReader);
             }
             stopTimer("evec read");
             if (il == 0)
             {
                 LOG(Message) << "tempEvec grid dimensions: " << tempEvec.Grid()->GlobalDimensions() << std::endl;
-                LOG(Message) << "Full grid dimensions:     " << U.Grid()->GlobalDimensions() << std::endl;
-                LOG(Message) << "RbGrid dimensions:        " << env().getRbGrid()->GlobalDimensions() << std::endl;
                 LOG(Message) << "norm2(tempEvec)=          " << norm2(tempEvec) << std::endl;
                 LOG(Message) << "tempEvec checkerboard after readElement: " << tempEvec.Checkerboard() << std::endl;
             }
         }
 
-        // Detect convention from eigenvector 0 (when evecStart==0, il==0 is evec 0;
-        // when evecStart>0, convention was already set above from a pre-read of v0).
         if (il == 0 && par().evecStart == 0)
         {
             masslessDdagD = (currentEval < mass * mass);
@@ -340,109 +319,106 @@ void TStagSparseA2AVectorsGridIo<FImpl>::execute(void)
                          << (masslessDdagD ? "massless DdagD" : "massive (D+m)dag(D+m)")
                          << " (eval0=" << currentEval << ", m^2=" << mass*mass << ")" << std::endl;
         }
+
         double lambda = masslessDdagD ? sqrt(currentEval)
                                       : sqrt(currentEval - mass * mass);
         std::complex<double> eval(mass, lambda);
-        // MILC eigenvectors use D without the 1/2 hopping factor, so their
-        // lambda is 2x Grid's. Halve it for the even-site W reconstruction.
-        std::complex<double> eval_for_W = par().milcEvecs ? std::complex<double>(mass, lambda / 2.0) : eval;
+        std::complex<double> eval_for_W = par().milcEvecs
+                                          ? std::complex<double>(mass, lambda / 2.0)
+                                          : eval;
 
         startTimer("W low mode");
         LOG(Message) << "W vector i = " << il << " (low modes)" << std::endl;
-        // don't divide by lambda — do it in contraction since it is complex
-        a2a.makeLowModeW(temp, tempEvec, eval_for_W, il%2);
+        a2a.makeLowModeW(temp, tempEvec, eval_for_W, il % 2);
         if (il < 2) LOG(Message) << "norm2(W low mode, il=" << il << ") = " << norm2(temp) << std::endl;
         stopTimer("W low mode");
 
-        il%2 ? eval=conjugate(eval) : eval ;
-        evalM[il]=eval;
+        il % 2 ? eval = conjugate(eval) : eval;
+        evalM[il] = eval;
 
         v[il]  = Zero();
         w0[il] = Zero();
         w1[il] = Zero();
         w2[il] = Zero();
 
-        for (int mu=0; mu<3; mu++)
+        for (int mu = 0; mu < 3; mu++)
         {
-            phases=1.0;
-            if (mu==1)
+            phases = 1.0;
+            if (mu == 1)
             {
-                phases = where( mod(x    ,2)==(Integer)0, phases,-phases);
+                phases = where(mod(x,     2) == (Integer)0, phases, -phases);
             }
-            else if (mu==2)
+            else if (mu == 2)
             {
-                phases = where( mod(lin_z,2)==(Integer)0, phases,-phases);
+                phases = where(mod(lin_z, 2) == (Integer)0, phases, -phases);
             }
             LatticeColourMatrix Umu(U.Grid());
-            Umu = PeekIndex<LorentzIndex>(U,mu);
+            Umu  = PeekIndex<LorentzIndex>(U, mu);
             Umu *= phases;
 
-            // v vec is shifted and * link for conserved current
-            temp2 = Umu*Cshift(temp, mu, 1);
+            temp2 = Umu * Cshift(temp, mu, 1);
 
-            thread_for(tt,loct,{
-                int tglb=tt+lstartt;
-                // same random shift for t, t+1 in same hypercube
-                if (tt%2 == 1) continue;
+            thread_for(tt, loct, {
+                int tglb = tt + lstartt;
+                if (tt % 2 == 1) continue;
 
                 Coordinate site(Nd);
                 Coordinate sparseSite(Nd);
                 ColourVector vec;
 
-                // loop over hypercubes on time slice and sparsen
-                for (int z=0; z<(int)ns; z+=step) {
-                    int zg=(zshift[tglb]+z)%ns;
-                    for (int zl=0; zl<locz; zl++) {
-                        int zgp=zl+lstartz;
-                        if (zgp==zg || zgp==(zg+1)%ns) {
-                            site[2]=zl;
-                            if (par().inc==1) {
-                                sparseSite[2]=site[2];
-                            } else if (zshift[tglb]!=step-1) {
-                                sparseSite[2]=2*int(site[2]/step) + (site[2]+zshift[tglb])%2;
+                for (int z = 0; z < (int)ns; z += step) {
+                    int zg = (zshift[tglb] + z) % ns;
+                    for (int zl = 0; zl < locz; zl++) {
+                        int zgp = zl + lstartz;
+                        if (zgp == zg || zgp == (zg+1) % ns) {
+                            site[2] = zl;
+                            if (par().inc == 1) {
+                                sparseSite[2] = site[2];
+                            } else if (zshift[tglb] != step-1) {
+                                sparseSite[2] = 2*int(site[2]/step) + (site[2]+zshift[tglb])%2;
                             } else {
-                                sparseSite[2]=2*int(site[2]/step) + (site[2])%2;
+                                sparseSite[2] = 2*int(site[2]/step) + (site[2])%2;
                             }
-                            for (int y=0; y<(int)ns; y+=step) {
-                                int yg=(yshift[tglb]+y)%ns;
-                                for (int yl=0; yl<locy; yl++) {
-                                    int ygp=yl+lstarty;
-                                    if (ygp==yg || ygp==(yg+1)%ns) {
-                                        site[1]=yl;
-                                        if (par().inc==1) {
-                                            sparseSite[1]=site[1];
-                                        } else if (yshift[tglb]!=step-1) {
-                                            sparseSite[1]=2*int(site[1]/step) + (site[1]+yshift[tglb])%2;
+                            for (int y = 0; y < (int)ns; y += step) {
+                                int yg = (yshift[tglb] + y) % ns;
+                                for (int yl = 0; yl < locy; yl++) {
+                                    int ygp = yl + lstarty;
+                                    if (ygp == yg || ygp == (yg+1) % ns) {
+                                        site[1] = yl;
+                                        if (par().inc == 1) {
+                                            sparseSite[1] = site[1];
+                                        } else if (yshift[tglb] != step-1) {
+                                            sparseSite[1] = 2*int(site[1]/step) + (site[1]+yshift[tglb])%2;
                                         } else {
-                                            sparseSite[1]=2*int(site[1]/step) + (site[1])%2;
+                                            sparseSite[1] = 2*int(site[1]/step) + (site[1])%2;
                                         }
-                                        for (int xx=0; xx<(int)ns; xx+=step) {
-                                            int xg=(xshift[tglb]+xx)%ns;
-                                            for (int xl=0; xl<locx; xl++) {
-                                                int xgp=xl+lstartx;
-                                                if (xgp==xg || xgp==(xg+1)%ns) {
-                                                    site[0]=xl;
-                                                    if (par().inc==1) {
-                                                        sparseSite[0]=site[0];
-                                                    } else if (xshift[tglb]!=step-1) {
-                                                        sparseSite[0]=2*int(site[0]/step) + (site[0]+xshift[tglb])%2;
+                                        for (int xx = 0; xx < (int)ns; xx += step) {
+                                            int xg = (xshift[tglb] + xx) % ns;
+                                            for (int xl = 0; xl < locx; xl++) {
+                                                int xgp = xl + lstartx;
+                                                if (xgp == xg || xgp == (xg+1) % ns) {
+                                                    site[0] = xl;
+                                                    if (par().inc == 1) {
+                                                        sparseSite[0] = site[0];
+                                                    } else if (xshift[tglb] != step-1) {
+                                                        sparseSite[0] = 2*int(site[0]/step) + (site[0]+xshift[tglb])%2;
                                                     } else {
-                                                        sparseSite[0]=2*int(site[0]/step) + (site[0])%2;
+                                                        sparseSite[0] = 2*int(site[0]/step) + (site[0])%2;
                                                     }
-                                                    for (int that=0; that<2; that++) {
-                                                        site[3]=tt+that;
-                                                        sparseSite[3]=site[3];
-                                                        if (mu==0) {
-                                                            peekLocalSite(vec,temp,site);
-                                                            pokeLocalSite(vec,v[il],sparseSite);
-                                                            peekLocalSite(vec,temp2,site);
-                                                            pokeLocalSite(vec,w0[il],sparseSite);
-                                                        } else if (mu==1) {
-                                                            peekLocalSite(vec,temp2,site);
-                                                            pokeLocalSite(vec,w1[il],sparseSite);
-                                                        } else if (mu==2) {
-                                                            peekLocalSite(vec,temp2,site);
-                                                            pokeLocalSite(vec,w2[il],sparseSite);
+                                                    for (int that = 0; that < 2; that++) {
+                                                        site[3]       = tt + that;
+                                                        sparseSite[3] = site[3];
+                                                        if (mu == 0) {
+                                                            peekLocalSite(vec, temp,  site);
+                                                            pokeLocalSite(vec, v[il],  sparseSite);
+                                                            peekLocalSite(vec, temp2, site);
+                                                            pokeLocalSite(vec, w0[il], sparseSite);
+                                                        } else if (mu == 1) {
+                                                            peekLocalSite(vec, temp2, site);
+                                                            pokeLocalSite(vec, w1[il], sparseSite);
+                                                        } else if (mu == 2) {
+                                                            peekLocalSite(vec, temp2, site);
+                                                            pokeLocalSite(vec, w2[il], sparseSite);
                                                         }
                                                     }
                                                 }
@@ -454,9 +430,9 @@ void TStagSparseA2AVectorsGridIo<FImpl>::execute(void)
                         }
                     }
                 }
-            });
-        }// end mu
-    }// end evecs
+            }); // thread_for
+        } // mu
+    } // il
 
     if (!par().multiFile)
         binReader.close();
@@ -468,15 +444,15 @@ void TStagSparseA2AVectorsGridIo<FImpl>::execute(void)
         if (status)
         {
             HADRONS_ERROR(Io, "cannot create directory '" + dir
-                          + "' ( " + std::strerror(errno) + ")");
+                          + "' (" + std::strerror(errno) + ")");
         }
         startTimer("V I/O");
-        A2AVectorsIo::write(par().output + "_v",  v,  par().multiFile, vm().getTrajectory());
+        A2AVectorsIo::write(par().output + "_v",  v,  par().multiFile, traj);
         stopTimer("V I/O");
         startTimer("W I/O");
-        A2AVectorsIo::write(par().output + "_w0", w0, par().multiFile, vm().getTrajectory());
-        A2AVectorsIo::write(par().output + "_w1", w1, par().multiFile, vm().getTrajectory());
-        A2AVectorsIo::write(par().output + "_w2", w2, par().multiFile, vm().getTrajectory());
+        A2AVectorsIo::write(par().output + "_w0", w0, par().multiFile, traj);
+        A2AVectorsIo::write(par().output + "_w1", w1, par().multiFile, traj);
+        A2AVectorsIo::write(par().output + "_w2", w2, par().multiFile, traj);
         stopTimer("W I/O");
     }
 
@@ -484,9 +460,9 @@ void TStagSparseA2AVectorsGridIo<FImpl>::execute(void)
     {
         std::string eval_filename;
         if (!par().output.empty())
-            eval_filename = A2AVectorsIo::evalFilename(par().output, vm().getTrajectory());
+            eval_filename = A2AVectorsIo::evalFilename(par().output, traj);
         else
-            eval_filename = A2AVectorsIo::evalFilename("evals", vm().getTrajectory());
+            eval_filename = A2AVectorsIo::evalFilename("evals", traj);
         A2AVectorsIo::initEvalFile(eval_filename, evalM.size());
         A2AVectorsIo::saveEvalBlock(eval_filename, evalM.data(), 0, 2*Nl_);
     }
