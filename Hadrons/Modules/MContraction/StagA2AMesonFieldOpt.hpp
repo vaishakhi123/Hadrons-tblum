@@ -141,7 +141,7 @@ void TStagA2AMesonFieldOpt<FImpl>::execute(void)
     auto &left  = envGet(std::vector<FermionField>, par().left);
     auto &right = envGet(std::vector<FermionField>, par().right);
 
-    GridBase *grid = envGetGrid(FermionField);
+    GridBase *grid = left[0].Grid();   // coarse/sparse grid (left is on sparse grid)
 
     int nt    = env().getDim().back();
     int N_i   = left.size();
